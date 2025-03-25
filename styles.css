@@ -3,3 +3,7 @@
 [data-zone-type="footer"] {
   display: none !important;
 }
+
+body.home [data-zone-type="content"] .section-content > div > div{
+  min-height: calc(100vh - 193px) !important;
+}
