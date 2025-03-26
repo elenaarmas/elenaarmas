@@ -64,8 +64,8 @@ class WordPressMirror:
         if not asset_url or asset_url.startswith(("data:", "#")):
             return asset_url
 
-        # Convert WordPress relative paths to absolute paths
-        if asset_url.startswith(("wp-content", "wp-includes", "wp-admin")):
+        # Simple string replacement for WordPress relative paths
+        if asset_url.startswith("wp-"):
             asset_url = "/" + asset_url
 
         absolute_url = urljoin(base_url, asset_url)
@@ -95,7 +95,6 @@ class WordPressMirror:
             return asset_url
 
     def process_page(self, url):
-        """Process page with enhanced WordPress media handling"""
         if url in self.visited:
             return
 
@@ -108,7 +107,19 @@ class WordPressMirror:
             print(f"Failed to fetch {url}: {e}")
             return
 
-        soup = BeautifulSoup(response.content, "lxml")
+        # Fix relative paths in HTML content using regex
+        content = response.content.decode("utf-8")
+
+        # Fix href and src attributes
+        content = re.sub(
+            r'(href|src)=(["\'])(wp-[^"\']+)(["\'])', r"\1=\2/\3\4", content
+        )
+
+        # Also handle srcset attributes
+        content = re.sub(r'(srcset)=(["\'])(wp-[^"\']+)(["\'])', r"\1=\2/\3\4", content)
+
+        # Now parse with BeautifulSoup
+        soup = BeautifulSoup(content, "lxml")
 
         # Process all assets
         for tag, attr in [
@@ -145,9 +156,11 @@ class WordPressMirror:
             new_srcset = []
             for source in element[attr].split(","):
                 url_part = source.strip().split()[0]
-                # Convert WordPress relative paths to absolute paths
-                if url_part.startswith(("wp-content", "wp-includes", "wp-admin")):
+
+                # Simple string replacement for WordPress relative paths
+                if url_part.startswith("wp-"):
                     url_part = "/" + url_part
+
                 processed = self.process_asset(base_url, url_part)
                 if processed:
                     if len(source.split()) > 1:
@@ -158,9 +171,11 @@ class WordPressMirror:
                 element[attr] = ", ".join(new_srcset)
         else:
             original = element[attr]
-            # Convert WordPress relative paths to absolute paths
-            if original.startswith(("wp-content", "wp-includes", "wp-admin")):
+
+            # Simple string replacement for WordPress relative paths
+            if original.startswith("wp-"):
                 original = "/" + original
+
             processed = self.process_asset(base_url, original)
             if processed:
                 element[attr] = processed
@@ -171,14 +186,17 @@ class WordPressMirror:
             return
 
         css = style_tag.string
+
+        # Use regex to find and fix WordPress relative paths in CSS
+        css = re.sub(r'url\([\'"]?(wp-[^)]+)[\'"]?\)', r"url(/\1)", css)
+
+        # Process other URLs
         urls = re.findall(r'url\((["\']?)(.*?)\1\)', css)
         for quote, url in urls:
-            # Convert WordPress relative paths to absolute paths
-            if url.startswith(("wp-content", "wp-includes", "wp-admin")):
-                url = "/" + url
             processed = self.process_asset(base_url, url.strip())
             if processed:
                 css = css.replace(url, processed)
+
         style_tag.string = css
 
     def run(self):
