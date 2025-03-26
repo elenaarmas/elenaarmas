@@ -2,24 +2,29 @@ import os
 import re
 import time
 import requests
+import json
+import argparse
 from urllib.parse import urljoin, urlparse, unquote
 from bs4 import BeautifulSoup
 
 
 class WordPressMirror:
-    def __init__(self, base_url, output_dir="docs"):
-        self.base_url = base_url
-        self.output_dir = output_dir
+    def __init__(self, config_file):
+        with open(config_file, "r") as f:
+            self.config = json.load(f)
+
+        self.base_url = self.config["urls"]["source"]
+        self.output_dir = self.config["directories"]["output"]
         self.visited = set()
         self.asset_cache = {}
         self.session = requests.Session()
         self.session.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": self.config["build"]["user_agent"],
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Referer": self.base_url,
         }
-        self.domain = urlparse(base_url).netloc
+        self.domain = urlparse(self.base_url).netloc
 
     def normalize_path(self, url):
         """Preserve WordPress media structure while cleaning parameters"""
@@ -207,4 +212,10 @@ class WordPressMirror:
 
 
 if __name__ == "__main__":
-    WordPressMirror("https://n1589766.websitebuilder.online/").run()
+    parser = argparse.ArgumentParser(description="WordPress Mirror Script")
+    parser.add_argument(
+        "--config", default="config.json", help="Path to the configuration file"
+    )
+    args = parser.parse_args()
+
+    WordPressMirror(args.config).run()

@@ -1,10 +1,27 @@
 #!/bin/bash
 
-# Configuration
-LOG_FILE="log.txt"
-BASE_URL="https://n1589766.websitebuilder.online"
-OUTPUT_DIR="assets"
-USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+# Parse command line arguments
+CONFIG_FILE="config.json"
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+    --config)
+        CONFIG_FILE="$2"
+        shift
+        ;;
+    *)
+        echo "Unknown parameter: $1"
+        exit 1
+        ;;
+    esac
+    shift
+done
+
+# Use jq to extract configuration values
+LOG_FILE=$(jq -r .build.log_file "$CONFIG_FILE")
+BASE_URL=$(jq -r .urls.source "$CONFIG_FILE")
+OUTPUT_DIR=$(jq -r .directories.assets "$CONFIG_FILE")
+USER_AGENT=$(jq -r .build.user_agent "$CONFIG_FILE")
+MIRROR_DIR=$(jq -r .directories.output "$CONFIG_FILE")
 
 # Create output directory with original structure
 mkdir -p "$OUTPUT_DIR"
@@ -37,42 +54,34 @@ grep "404 - GET" "$LOG_FILE" | while read -r line; do
 done
 
 echo "Downloaded assets stored in: $OUTPUT_DIR"
-echo "Use these commands to move them to the correct location:"
-echo "cp -n $OUTPUT_DIR/wp-content/uploads/go-x/u/* docs/n1589766.websitebuilder.online/wp-content/uploads/go-x/u/"
-echo "cp -n $OUTPUT_DIR/wp-content/themes/* docs/n1589766.websitebuilder.online/wp-content/themes/"
 
-# Configuration
-MIRROR_DIR="docs"
-ASSETS_DIR="assets"
-
-# Ensure assets directory exists
-if [[ ! -d "$ASSETS_DIR" ]]; then
-    echo "❌ Error: Assets directory '$ASSETS_DIR' does not exist!"
-    exit 1
-fi
-
+# Inject assets into mirror structure
 echo "▸ Injecting assets into mirror structure..."
 
 # Move assets into the mirror directory
-mv "$ASSETS_DIR" "$MIRROR_DIR/" || {
+mv "$OUTPUT_DIR" "$MIRROR_DIR/" || {
     echo "❌ Failed to move assets to $MIRROR_DIR/"
     exit 1
 }
 
 # Merge assets while preserving directory structure
-rsync -a --ignore-existing "$MIRROR_DIR/assets/wp-content/" "$MIRROR_DIR/wp-content/" || {
+rsync -a --ignore-existing "$MIRROR_DIR/$OUTPUT_DIR/wp-content/" "$MIRROR_DIR/wp-content/" || {
     echo "❌ Failed to sync assets into $MIRROR_DIR/wp-content/"
     exit 1
 }
 
 # Clean up empty directories and leftover assets
-find "$MIRROR_DIR/assets" -type d -empty -delete
-rm -rf "$MIRROR_DIR/assets"
+find "$MIRROR_DIR/$OUTPUT_DIR" -type d -empty -delete
+rm -rf "$MIRROR_DIR/$OUTPUT_DIR"
 
 echo "▸ Fixing HTML references to use local paths..."
+
+# Extract special paths from config
+SPECIAL_PATHS=$(jq -r '.wordpress.special_paths[]' "$CONFIG_FILE" | sed 's/^/s|/; s/$/|&|g')
+
 find "$MIRROR_DIR" -type f -name "*.html" -exec sed -i \
-    -e 's|https://n1589766\.websitebuilder\.online||g' \
-    -e 's|/wp-content/themes/gox/public/legal/maps/es-ES\.html|/wp-content/themes/gox/public/legal/maps/es-ES.html|g' \
+    -e "s|$BASE_URL||g" \
+    $SPECIAL_PATHS \
     {} \;
 
 echo "✅ Injection complete! Assets available at:"

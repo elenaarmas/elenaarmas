@@ -1,0 +1,28 @@
+{
+  "urls": {
+    "source": "https://n1589766.websitebuilder.online",
+    "target": "https://draelenaarmas.com"
+  },
+  "directories": {
+    "output": "docs",
+    "assets": "assets",
+    "cache": ".cache"
+  },
+  "wordpress": {
+    "paths": ["wp-content", "wp-includes", "wp-admin"],
+    "special_paths": [
+      "/wp-content/themes/gox/public/legal/maps/es-ES.html"
+    ]
+  },
+  "build": {
+    "log_file": "log.txt",
+    "styles_file": "styles.css",
+    "styles_target": "wp-includes/css/classic-themes.min.css",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  "path_rewrites": [
+    { "from": "href=\"wp-", "to": "href=\"/wp-" },
+    { "from": "src=\"wp-", "to": "src=\"/wp-" },
+    { "from": "url(wp-", "to": "url(/wp-" }
+  ]
+}
